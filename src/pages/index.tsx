@@ -1,18 +1,19 @@
-import io from "socket.io-client";
-import { useState, useEffect } from "react";
+import io, { Socket } from "socket.io-client";
+import { useState, useEffect, useRef } from "react";
+import { DefaultEventsMap } from "@socket.io/component-emitter";
 
-let socket;
+let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
 
 type Message = {
-  author: string;
+  author?: string;
   message: string;
 };
 
 export default function Home() {
-  const [username, setUsername] = useState("");
-  const [chosenUsername, setChosenUsername] = useState("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Array<Message>>([]);
+  const [typingMessage, setTypingMessage] = useState("");
+  const [typingProgress, setTypingProgress] = useState(0);
 
   useEffect(() => {
     socketInitializer();
@@ -24,21 +25,28 @@ export default function Home() {
 
     socket = io();
 
-    socket.on("newIncomingMessage", (msg) => {
-      setMessages((currentMsg) => [
-        ...currentMsg,
-        { author: msg.author, message: msg.message },
-      ]);
-      console.log(messages);
+    socket.on("respond", (msg) => {
+      setTypingMessage(msg.message);
+      const typingInterval = setInterval(() => {
+        setTypingProgress((currentProgress) => {
+          if (currentProgress >= msg.message.length) {
+            clearInterval(typingInterval);
+            setMessages((currentMsg) => [
+              ...currentMsg,
+              { author: "bot", message: msg.message },
+            ]);
+            setTypingMessage("");
+            setTypingProgress(0);
+          }
+          return currentProgress + 1;
+        });
+      }, 50); // adjust typing speed here
     });
   };
 
   const sendMessage = async () => {
-    socket.emit("createdMessage", { author: chosenUsername, message });
-    setMessages((currentMsg) => [
-      ...currentMsg,
-      { author: chosenUsername, message },
-    ]);
+    socket.emit("prompt", { message });
+    setMessages((currentMsg) => [...currentMsg, { message }]);
     setMessage("");
   };
 
@@ -51,71 +59,78 @@ export default function Home() {
     }
   };
 
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      socket?.close();
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
+
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, typingMessage]);
+
   return (
-    <div className="flex items-center p-4 mx-auto min-h-screen justify-center bg-purple-500">
+    <div className="flex items-center p-4 mx-auto min-h-screen justify-center bg-gray-100 w-full h-full absolute inset-0">
       <main className="gap-4 flex flex-col items-center justify-center w-full h-full">
-        {!chosenUsername ? (
-          <>
-            <h3 className="font-bold text-white text-xl">
-              How people should call you?
-            </h3>
+        <div className="flex flex-col justify-end bg-white h-full min-w-full rounded-md shadow-lg">
+          <div className="h-full last:border-b-0 overflow-y-scroll pb-20 px-5">
+            {messages.map((msg, i) => (
+              <div
+                className={`w-3/4 py-1 px-2 border-b border-gray-200 rounded-lg my-5
+                text-left overflow-auto break-words
+              ${
+                msg.author !== "bot"
+                  ? "ml-auto bg-blue-200"
+                  : "mr-auto bg-green-200"
+              }`}
+                key={i}
+              >
+                {msg.message}
+              </div>
+            ))}
+            {typingMessage && (
+              <div
+                className="w-3/4 py-1 px-2 border-b border-gray-200 rounded-lg my-5
+                text-left overflow-auto break-words mr-auto bg-green-200"
+                key={typingMessage}
+              >
+                {typingMessage.slice(0, typingProgress)}
+                <span className="typing-indicator">|</span>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+          <div className="border-t border-gray-300 w-full flex rounded-bl-md">
             <input
               type="text"
-              placeholder="Identity..."
-              value={username}
-              className="p-3 rounded-md outline-none"
-              onChange={(e) => setUsername(e.target.value)}
+              placeholder="New message..."
+              value={message}
+              className="outline-none py-2 px-2 rounded-bl-md flex-1 shadow-inner"
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyUp={handleKeypress}
             />
-            <button
-              onClick={() => {
-                setChosenUsername(username);
-              }}
-              className="bg-white rounded-md px-4 py-2 text-xl"
-            >
-              Go!
-            </button>
-          </>
-        ) : (
-          <>
-            <p className="font-bold text-white text-xl">
-              Your username: {username}
-            </p>
-            <div className="flex flex-col justify-end bg-white h-[20rem] min-w-[33%] rounded-md shadow-md ">
-              <div className="h-full last:border-b-0 overflow-y-scroll">
-                {messages.map((msg, i) => {
-                  return (
-                    <div
-                      className="w-full py-1 px-2 border-b border-gray-200"
-                      key={i}
-                    >
-                      {msg.author} : {msg.message}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="border-t border-gray-300 w-full flex rounded-bl-md">
-                <input
-                  type="text"
-                  placeholder="New message..."
-                  value={message}
-                  className="outline-none py-2 px-2 rounded-bl-md flex-1"
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyUp={handleKeypress}
-                />
-                <div className="border-l border-gray-300 flex justify-center items-center  rounded-br-md group hover:bg-purple-500 transition-all">
-                  <button
-                    className="group-hover:text-white px-3 h-full"
-                    onClick={() => {
-                      sendMessage();
-                    }}
-                  >
-                    Send
-                  </button>
-                </div>
-              </div>
+            <div className="border-l border-gray-300 flex justify-center items-center  rounded-br-md group hover:bg-blue-500 transition-all">
+              <button
+                className="group-hover:text-white px-3 h-full"
+                onClick={() => {
+                  sendMessage();
+                }}
+              >
+                Send
+              </button>
             </div>
-          </>
-        )}
+          </div>
+        </div>
       </main>
     </div>
   );
