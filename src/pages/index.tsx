@@ -26,14 +26,14 @@ export default function Home() {
     socket = io();
 
     socket.on("respond", (msg) => {
-      setTypingMessage(msg.message);
+      setTypingMessage(msg);
       const typingInterval = setInterval(() => {
         setTypingProgress((currentProgress) => {
-          if (currentProgress >= msg.message.length) {
+          if (currentProgress >= msg.length) {
             clearInterval(typingInterval);
             setMessages((currentMsg) => [
               ...currentMsg,
-              { author: "bot", message: msg.message },
+              { author: "bot", message: msg },
             ]);
             setTypingMessage("");
             setTypingProgress(0);

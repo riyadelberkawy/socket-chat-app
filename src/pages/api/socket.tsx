@@ -1,4 +1,5 @@
 import { Server } from "socket.io";
+import messageHandler from "../../utils/sockets/messageHandler";
 
 export default function SocketHandler(req, res) {
   // It means that socket server was already initialised
@@ -13,23 +14,16 @@ export default function SocketHandler(req, res) {
 
   // Define actions inside
   io.on("connection", (socket) => {
-    console.log("New connectionr", socket.id);
-    const createdMessage = (msg: { message: string }) => {
-      // call the modal here
-      socket.emit("respond", { message: "Let me check..." });
+    socket.emit("respond", "Hello, I'm a bot. How can I help you?");
+
+    const createdMessage = (msg) => {
+      socket.broadcast.emit("respond", msg);
+      socket.emit("respond", "Let me think...");
     };
 
     socket.on("prompt", createdMessage);
-
-    socket.on("disconnect", () => {
-      console.log("Disconnected: ", socket.id);
-      socket.off("prompt", createdMessage);
-      socket.offAny();
-      socket.disconnect();
-    });
-
-    // send initial message
-    socket.emit("respond", { message: "Hello, How can I help you?" });
   });
+
+  console.log("Setting up socket");
   res.end();
 }
