@@ -1,8 +1,5 @@
-import io, { Socket } from "socket.io-client";
 import { useState, useEffect, useRef } from "react";
 import { DefaultEventsMap } from "@socket.io/component-emitter";
-
-let socket: Socket<DefaultEventsMap, DefaultEventsMap>;
 
 type Message = {
   author?: string;
@@ -16,38 +13,31 @@ export default function Home() {
   const [typingProgress, setTypingProgress] = useState(0);
 
   useEffect(() => {
-    socketInitializer();
+    getResponse("Hello, How can I help you?");
   }, []);
 
-  const socketInitializer = async () => {
-    // We just call it because we don't need anything else out of it
-    await fetch("/api/socket");
-
-    socket = io();
-
-    socket.on("respond", (msg) => {
-      setTypingMessage(msg);
-      const typingInterval = setInterval(() => {
-        setTypingProgress((currentProgress) => {
-          if (currentProgress >= msg.length) {
-            clearInterval(typingInterval);
-            setMessages((currentMsg) => [
-              ...currentMsg,
-              { author: "bot", message: msg },
-            ]);
-            setTypingMessage("");
-            setTypingProgress(0);
-          }
-          return currentProgress + 1;
-        });
-      }, 50); // adjust typing speed here
-    });
+  const getResponse = (msg: string) => {
+    setTypingMessage(msg);
+    const typingInterval = setInterval(() => {
+      setTypingProgress((currentProgress) => {
+        if (currentProgress >= msg.length) {
+          clearInterval(typingInterval);
+          setMessages((currentMsg) => [
+            ...currentMsg,
+            { author: "bot", message: msg },
+          ]);
+          setTypingMessage("");
+          setTypingProgress(0);
+        }
+        return currentProgress + 1;
+      });
+    }, 50); // adjust typing speed here
   };
 
   const sendMessage = async () => {
-    socket.emit("prompt", { message });
     setMessages((currentMsg) => [...currentMsg, { message }]);
     setMessage("");
+    getResponse("Let me check...");
   };
 
   const handleKeypress = (e) => {
@@ -58,16 +48,6 @@ export default function Home() {
       }
     }
   };
-
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      socket?.close();
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
-  }, []);
 
   const messagesEndRef = useRef(null);
 

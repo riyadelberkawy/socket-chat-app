@@ -12,17 +12,12 @@ export default function SocketHandler(req, res) {
   const io = new Server(res.socket.server);
   res.socket.server.io = io;
 
+  const onConnection = (socket) => {
+    messageHandler(io, socket);
+  };
+
   // Define actions inside
-  io.on("connection", (socket) => {
-    socket.emit("respond", "Hello, I'm a bot. How can I help you?");
-
-    const createdMessage = (msg) => {
-      socket.broadcast.emit("respond", msg);
-      socket.emit("respond", "Let me think...");
-    };
-
-    socket.on("prompt", createdMessage);
-  });
+  io.on("connection", onConnection);
 
   console.log("Setting up socket");
   res.end();
